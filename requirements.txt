@@ -1,0 +1,139 @@
+# Requirements for Multi-Modal Retrieval-Augmented Generation (RAG) system
+# Note: Some packages require system-level binaries (Tesseract, Poppler, Java, Ghostscript)
+# and optional GPU toolkits (CUDA) for accelerate. Install those separately.
+
+# =============================================================================
+# CORE LLM & ORCHESTRATION
+# =============================================================================
+langchain>=0.1.0
+langchain-community>=0.0.10
+langchain-openai>=0.0.5
+openai>=1.0.0
+langsmith  # For LangChain tracing and evaluation
+
+# =============================================================================
+# EMBEDDINGS & MODEL RUNTIMES
+# =============================================================================
+sentence-transformers>=2.2.0
+transformers>=4.30.0
+torch>=2.0.0
+sentencepiece>=0.1.99
+accelerate>=0.20.0  # For model loading optimization
+
+
+# =============================================================================
+# VECTOR STORES & RETRIEVAL
+# =============================================================================
+faiss-cpu>=1.7.4
+chromadb>=0.4.0
+# Alternative vector stores (uncomment as needed)
+# pinecone-client>=2.2.0
+# weaviate-client>=3.20.0
+# qdrant-client>=1.3.0
+
+# =============================================================================
+# DOCUMENT PARSING & PROCESSING
+# =============================================================================
+# PDF processing
+pdfplumber>=0.9.0
+PyMuPDF>=1.23.0  # fitz
+pdf2image>=1.16.0
+pdfminer.six>=20221105
+
+# Table extraction
+camelot-py[cv]>=0.10.1
+tabula-py>=2.7.0
+pandas>=2.0.0
+openpyxl>=3.1.0
+
+# Document format support
+python-docx>=0.8.11
+python-pptx>=0.6.21
+markdown>=3.4.0
+
+# =============================================================================
+# OCR & IMAGE PROCESSING
+# =============================================================================
+pytesseract>=0.3.10
+Pillow>=10.0.0
+opencv-python>=4.8.0
+scikit-image>=0.21.0
+easyocr>=1.7.0  # Alternative OCR engine
+
+# =============================================================================
+# MULTIMODAL & LAYOUT ANALYSIS
+# =============================================================================
+layoutparser[paddledetection]
+# unstructured[all-docs]>=0.10.0  # Comprehensive document processing
+# detectron2 @ git+https://github.com/facebookresearch/detectron2.git  # Advanced layout detection
+
+# =============================================================================
+# WEB UI & API SERVING
+# =============================================================================
+gradio>=4.0.0
+streamlit>=1.28.0
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
+python-multipart>=0.0.6
+jinja2>=3.1.0
+
+# =============================================================================
+# EVALUATION & BENCHMARKING
+# =============================================================================
+pytest>=7.4.0
+pytest-benchmark>=4.0.0
+pytest-cov>=4.1.0
+evaluate>=0.4.0
+rouge-score>=0.1.2
+bert-score>=0.3.13
+ragas>=0.1.0  # RAG-specific evaluation metrics
+deepeval>=0.20.0  # LLM evaluation framework
+
+# =============================================================================
+# DATA PROCESSING & UTILITIES
+# =============================================================================
+numpy>=1.24.0
+scipy>=1.11.0
+scikit-learn>=1.3.0  # For TF-IDF and hybrid search
+requests>=2.31.0
+tqdm>=4.65.0
+pyyaml>=6.0
+rich>=13.0.0
+click>=8.1.0  # CLI interface
+loguru>=0.7.0  # Better logging
+python-dotenv>=1.0.0  # Environment variables
+tiktoken>=0.5.0  # Token counting for context window management
+langchain-text-splitters>=0.0.1  # Text splitting utilities
+
+# =============================================================================
+# OPTIONAL: ADVANCED FEATURES
+# =============================================================================
+# Async processing
+aiofiles>=23.0.0
+aiohttp>=3.8.0
+
+# Caching and performance
+redis>=4.6.0
+joblib>=1.3.0
+
+# Monitoring and observability
+wandb>=0.15.0  # Experiment tracking
+# prometheus-client>=0.17.0
+
+# =============================================================================
+# SYSTEM REQUIREMENTS NOTES
+# =============================================================================
+# Windows users need:
+# - Tesseract OCR: https://github.com/UB-Mannheim/tesseract/wiki
+# - Poppler: https://github.com/oschwartz10612/poppler-windows/releases
+# - Java JRE/JDK (for tabula-py)
+# - Ghostscript (for camelot-py)
+#
+# Linux/Mac users:
+# - sudo apt-get install tesseract-ocr poppler-utils default-jre ghostscript
+# - brew install tesseract poppler openjdk ghostscript
+#
+# GPU Support (optional):
+# - Replace faiss-cpu with faiss-gpu
+# - Install CUDA toolkit for PyTorch GPU support
+# - torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118

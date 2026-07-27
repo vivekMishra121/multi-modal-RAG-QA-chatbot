@@ -1,0 +1,32 @@
+{
+  "retrieval": {
+    "precision@5": 0.016666666666666666,
+    "recall@5": 0.041666666666666664,
+    "mrr": 0.027777777777777776,
+    "ndcg@5": 0.013888888888888888
+  },
+  "generation": {
+    "semantic_similarity": 0.6253683269023895,
+    "faithfulness": 0.5606771429379781,
+    "length_score": 1.0,
+    "citation_score": 0.3333333333333333
+  },
+  "multimodal": {
+    "modality_coverage": 0.48888888888888893,
+    "table_accuracy": 1.0,
+    "chart_detection": 0.9230769230769231,
+    "ocr_quality": 1.0
+  },
+  "latency": {
+    "avg_latency": 5.107344627380371,
+    "latency_score": 0.6852876113424128
+  },
+  "overall": {
+    "retrieval_score": 0.025833333333333333,
+    "generation_score": 0.6077515212694804,
+    "multimodal_score": 0.8312820512820513,
+    "latency_score": 0.6852876113424128,
+    "overall_score": 0.5006891109027188,
+    "grade": "D"
+  }
+}
