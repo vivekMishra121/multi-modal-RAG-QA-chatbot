@@ -1,0 +1,16 @@
+.venv
+.git
+__pycache__
+*.pyc
+.env
+.pytest_cache
+.mypy_cache
+.ruff_cache
+tests
+tools
+docs
+build
+dist
+*.egg-info
+*.ipynb
+.ipynb_checkpoints

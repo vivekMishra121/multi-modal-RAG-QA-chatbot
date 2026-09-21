@@ -23,16 +23,20 @@ Create these deployments in Azure Portal:
 
 ## 3. Rebuild Index
 
+With the API configuration set (see `.env.example`, especially
+`LLM_PROVIDER=azure_openai`, `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`,
+`EMBEDDING_PROVIDER=azure_openai`, `EMBEDDING_DIMENSIONS=1536`), build an index:
+
 ```bash
-python rebuild_with_openai.py "path/to/document.pdf"
+python scripts/cli.py build "path/to/document.pdf" --store-path vector_store_data
 ```
 
-The system will auto-detect Azure and use it.
+The system auto-detects Azure from the environment and uses it.
 
 ## 4. Test
 
 ```bash
-python run_evaluation.py
+python scripts/evaluate.py
 ```
 
 ## Cost Comparison

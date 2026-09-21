@@ -1,267 +1,198 @@
-# Multi-Modal RAG QA System
+# Multi-Modal RAG QA Chatbot
 
-A production-ready Retrieval-Augmented Generation system for multi-modal documents (text, tables, images) with industry-standard evaluation.
-
-[![Grade: A](https://img.shields.io/badge/Grade-A-brightgreen)]()
-[![Accuracy: 80-85%](https://img.shields.io/badge/Accuracy-80--85%25-blue)]()
-[![Latency: <3s](https://img.shields.io/badge/Latency-<3s-orange)]()
-[![Python: 3.8+](https://img.shields.io/badge/Python-3.8+-yellow)]()
-[![License: MIT](https://img.shields.io/badge/License-MIT-green)]()
-
----
-
-## Overview
-
-This system answers questions from complex documents by combining multi-modal extraction (text, tables, charts), semantic search, and LLM-based generation — all with automatic retrieval strategy selection and cross-encoder reranking.
-
----
-
-## Features
-
-| Feature | Details |
-|---------|---------|
-| Multi-Modal Extraction | Text, tables, images, charts (PDF/DOCX/TXT) |
-| Smart Chunking | 512-char chunks with page tracking |
-| Embeddings | `all-MiniLM-L6-v2` (384-dim) |
-| Vector Store | FAISS with cosine similarity |
-| Retrieval Strategies | Standard / MMR / Hybrid (auto-selected) |
-| Reranking | Cross-encoder `ms-marco-MiniLM` (+15-20% accuracy) |
-| Chart Detection | Bar/line/pie classification with confidence scoring |
-| LLM | GPT-3.5-turbo with citation tracking |
-| Evaluation | Industry-standard metrics (Precision, Recall, MRR, NDCG, Faithfulness) |
-
----
+Retrieval-Augmented Generation over multi-modal documents (text, tables, images,
+charts) backed by a modular FastAPI service, a Streamlit web client, and a
+command-line interface.
 
 ## Architecture
 
 ```
-PDF/DOCX
+PDF/DOCX/TXT (and images/tables) -- or upload via the API
+   │
+   ├──► storage (Blob)  ──►  raw upload bytes + file records (Cosmos)
+   ▼
+document_ingestion  ──►  text + tables + images + charts
    │
    ▼
-Document Ingestion ──► Text + Tables + Images + Chart Detection
+chunking            ──►  typed chunks (text/table/chart) → embeddings
    │
    ▼
-Chunking & Embedding ──► 512-char chunks → 384-dim vectors
-   │
+vector_store        ──►  provider layer (Azure AI Search default; Qdrant /
+   │                       FAISS for offline dev)
    ▼
-FAISS Vector Store ──► Cosine similarity index + metadata
-   │
+retrieval           ──►  standard / hybrid / MMR strategies + optional
+   │                       cross-encoder reranking + query expansion
    ▼
-Retrieval ──► Auto strategy (Standard/MMR/Hybrid) → Cross-encoder reranking
-   │
+qa_generation       ──►  token-budgeted context → LLM answer + citations
+   │                       (conversation history injected from Cosmos)
    ▼
-QA Generation ──► LLM answer + citations
-   │
-   ▼
-Evaluation ──► Retrieval + Generation + Multi-Modal + Latency metrics
+rag.api (FastAPI) / scripts.cli (CLI) / streamlit_app.py (web UI)
 ```
 
----
+Conversation memory and projects live in **Azure Cosmos DB (NoSQL/Core SQL API)**
+(`rag.cosmos`): chat turns are persisted per `conversation_id`, and projects
+store metadata + retrieval filters applied to every query. Raw uploaded files
+are kept in **Azure Blob Storage** (`rag.storage`).
 
-## Quick Start
+## Layout
 
-### Prerequisites
+``src/rag`` is the application package (src-layout, instalable via ``pip install .``):
 
-- Python 3.8+
-- Tesseract OCR
+```
+src/rag/
+  core/            configuration (pydantic-settings), error model, logging
+  services/        application use cases: chat, document management, indexing
+  api/             FastAPI presentation layer: main factory, routes, schemas, deps
+  chatbot.py       RAGChatbot orchestrator + build_index/get_chatbot helpers
+  chunking/        smart chunking + embedding providers (OpenAI/Azure/BGE)
+  retrieval/       Retriever (standard/hybrid/MMR), query expansion, reranking
+  qa_generation/   qa_chain, pipeline, token-budgeted context manager
+  vector_store/    provider layer: azure_search_store (default), qdrant_store, store (FAISS)
+  cosmos/          Cosmos DB NoSQL store: conversation memory, projects, file records
+  storage/         Azure Blob Storage wrapper for raw uploaded documents
+  document_ingestion/  multi-modal extraction (pdfplumber, PyMuPDF, python-docx, OCR, tables)
+
+tools/evaluation/   RAG evaluation metrics + test cases (scripts/evaluate.py runner)
+scripts/cli.py      CLI: build / chat / evaluate
+streamlit_app.py    Streamlit web client (HTTP client of the API)
+tests/              pytest suite with in-memory Qdrant + fakes (no network/keys needed)
+```
+
+Each engine module stays decoupled from the API: routes are thin adapters over
+``rag.services``, and ``rag.services`` orchestrate the engine plus shared policies
+(validation, snapshotting, degraded-mode responses).
+
+## Prerequisites
+
+- Python 3.9
+- Tesseract OCR (for image/OCR-based extraction)
+- Ghostscript (runtime dependency of `camelot-py` for table extraction)
+
+## Installation
 
 ```bash
-# Windows (Chocolatey)
-choco install tesseract -y
-
-# Or download: https://github.com/UB-Mannheim/tesseract/wiki
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements/dev.txt     # dev: includes pytest/ruff/mypy
+pip install -r requirements/ui.txt      # UI add-on: streamlit
+pip install -e .                        # src-layout: installs the `rag` package
 ```
 
-### Installation
+## Configuration
 
-```bash
-git clone https://github.com/vivekMishra121/multi-modal-RAG-QA-chatbot.git
-cd multi-modal-RAG-QA-chatbot
-pip install -r requirements.txt
+Create `.env` from the template (`cp .env.example .env`) and set at least one
+LLM provider. Everything is namespaced with env prefixes — see `.env.example`
+for the full reference.
+
+Quick reference (all optional):
+
+```
+LLM_PROVIDER=openai               # openai | azure_openai | groq
+OPENAI_API_KEY=...                # OpenAI API key
+AZURE_OPENAI_ENDPOINT=...         # required when provider=azure_openai
+AZURE_OPENAI_API_KEY=...
+EMBEDDING_PROVIDER=openai         # openai | azure_openai | sentence_transformers | bge_m3
+RETRIEVAL_TOP_K=5
+VECTOR_STORE_BACKEND=azure_search # azure_search (default) | qdrant | faiss
+RETRIEVAL_STRATEGY=auto           # auto | vector | hybrid | mmr
+RETRIEVAL_USE_RERANKER=false      # optional cross-encoder reranking
+COSMOS_ENDPOINT=...               # Azure Cosmos DB (NoSQL API) URI (required)
+COSMOS_KEY=...                    # Cosmos DB key (required)
+AZURE_BLOB_CONNECTION_STRING=...  # Azure Blob Storage connection string
 ```
 
-### Configuration
-
-Create a `.env` file:
-```
-OPENAI_API_KEY=your_api_key_here
-GROQ_API_KEY=your_groq_key_here       # optional
-MODEL_NAME=gpt-3.5-turbo              # optional
-MAX_CONTEXT_TOKENS=4096               # optional
-TOP_K=5                               # optional
-```
-
-### Build Index
-
-```bash
-python main.py build "path/to/your/document.pdf"
-```
-
-### Run
-
-```bash
-# Streamlit UI
-streamlit run chatbot.py
-
-# CLI
-python main.py
-```
-
----
+Notes:
+- **Cosmos DB is required for chat**: it backs conversation memory and the
+  project registry, and there is no fallback. Missing credentials start the
+  service in degraded mode; chat returns `503` until configured. Database and
+  container names (`rag-chat` / `conversations` / `projects` / `files`) and
+  `COSMOS_MAX_HISTORY_TURNS=6` default in code.
+- **Blob Storage** persists raw uploads under `{container}/{project_id|default}/{file}`
+  (`AZURE_BLOB_CONTAINER` defaults to `rag-uploads`).
+- The default vector store is **Azure AI Search**. Set ``AZURE_SEARCH_ENDPOINT``
+  and ``AZURE_SEARCH_API_KEY`` to index/query documents, or switch
+  ``VECTOR_STORE_BACKEND`` to ``qdrant`` for zero-config local development.
+- The service boots in **degraded mode** when required keys are missing: health
+  checks pass (``200``), document/chat endpoints return ``503`` with a ``request_id``.
+- Embedding/retrieval dimension mismatches are guarded: if an existing index has
+  a different dimension than the configured embedder, you are told to rebuild.
+- pydantic-settings reads environment variables once per process; change `.env`
+  and restart.
 
 ## Usage
 
-### Basic
-
-```python
-from main import get_chatbot
-
-chatbot = get_chatbot()
-result = chatbot.chat("What is Qatar's GDP?")
-
-print(result['answer'])
-print(f"Sources: {len(result['sources'])} chunks")
-```
-
-### With Filters
-
-```python
-# Filter by page
-result = chatbot.chat("What is inflation?", filters={'page': 5})
-
-# Filter by content type
-result = chatbot.chat("Show GDP data", filters={'chunk_type': 'table'})
-result = chatbot.chat("Show growth trends", filters={'is_chart': True})
-```
-
-### Advanced Retrieval
-
-```python
-from retrieval import Retriever
-from vector_store import VectorStore
-
-store = VectorStore.load('./vector_store_data')
-retriever = Retriever(store, use_reranker=True)
-
-results = retriever.retrieve(
-    query_embedding,
-    query_text,
-    top_k=5,
-    strategy='auto',
-    rerank=True
-)
-```
-
----
-
-## Evaluation
+### API service
 
 ```bash
-python run_evaluation.py
+uvicorn rag.api.main:app --reload --port 8000
 ```
 
-### Metrics
+- ``GET /health`` — liveness/readiness with dependency status
+- ``POST /api/v1/chat`` — ``{"question": "...", "conversation_id": "...", "project_id": "...", "strategy": "vector", "top_k": 5}``
+- ``POST /api/v1/documents/upload`` — upload PDF/DOCX/TXT files (multipart; optional ``project_id`` form field)
+- ``GET  /api/v1/documents`` — list indexed documents and chunk counts
+- ``GET  /api/v1/documents/{file_name}/download`` — stream the stored raw file
+- ``DELETE /api/v1/documents/{file_name}`` — remove one document's chunks, blob, and record
+- ``GET  /api/v1/conversations/{conversation_id}`` — fetch stored chat memory
+- ``DELETE /api/v1/conversations/{conversation_id}`` — clear a conversation
+- ``POST /api/v1/projects`` / ``GET /api/v1/projects`` — create/list projects
+- ``GET/PATCH/DELETE /api/v1/projects/{project_id}`` — manage a project
+- ``GET  /api/v1/documents/files`` — list stored file records
 
-| Category | Metrics | Target |
-|----------|---------|--------|
-| Retrieval (30%) | Precision@5, Recall@5, MRR, NDCG | >0.70 |
-| Generation (30%) | Semantic Similarity, Faithfulness | >0.70 |
-| Multi-Modal (25%) | Coverage, Table/Chart Accuracy | >0.70 |
-| Latency (15%) | Response Time | <3.5s |
+### CLI
 
-### Sample Output
-
-```
-📊 RETRIEVAL METRICS
-  Precision@5: 0.850 ✅   Recall@5: 0.720 ✅
-  MRR:         0.680 ✅   NDCG@5:   0.750 ✅
-
-📊 GENERATION METRICS
-  Semantic Similarity: 0.780 ✅
-  Faithfulness:        0.880 ✅
-
-📊 MULTI-MODAL METRICS
-  Modality Coverage: 0.800 ✅
-  Table Accuracy:    0.850 ✅
-  Chart Detection:   0.820 ✅
-
-📊 LATENCY
-  Avg: 2.8s ✅
-
-🏆 OVERALL: 0.825 — Grade A
+```bash
+python scripts/cli.py build <path/to/document.pdf> --store-path vector_store_data
+python scripts/cli.py chat                        --store-path vector_store_data
+python scripts/cli.py evaluate
 ```
 
----
+### Streamlit UI
 
-## Performance
-
-| Operation | Time |
-|-----------|------|
-| Indexing (78-page PDF) | ~45s (one-time) |
-| Query end-to-end | 2.5–3.0s |
-| Retrieval only | ~0.3s |
-| Generation only | ~2.0s |
-
----
-
-## Project Structure
-
-```
-multi-modal-RAG-QA-chatbot/
-├── document_ingestion/     # Multi-modal extraction + chart detection
-├── chunking/               # Smart chunking + embeddings
-├── vector_store/           # FAISS index + metadata
-├── retrieval/              # Auto strategy selection + reranking
-├── qa_generation/          # LLM integration + citations
-├── evaluation/             # Evaluation metrics
-├── main.py                 # Core API
-├── chatbot.py              # Streamlit UI
-├── run_evaluation.py       # Evaluation runner
-└── requirements.txt
+```bash
+streamlit run streamlit_app.py
 ```
 
----
+It is a thin HTTP client of the API (set `RAG_API_URL` if the API is not on
+`http://localhost:8000`). It talks to the model/vector store through the service,
+never directly.
 
-## Configuration Reference
+## Docker
 
-```python
-# chunking/pipeline.py
-text_chunk_size=512       # characters per chunk
-text_chunk_overlap=100    # overlap between chunks
-
-# main.py
-retrieval_strategy='auto' # auto | standard | mmr | hybrid
-use_reranker=True
-top_k=5
+```bash
+cp .env.example .env    # fill in keys
+docker compose up --build
 ```
 
----
+- API on `http://localhost:8000`, UI on `http://localhost:8501`.
+- Vector store data persists in a named volume.
+
+## CI / Quality
+
+```bash
+ruff check .                       # lint
+mypy src/ tools/ scripts/ streamlit_app.py
+pytest tests/                      # 55 tests, in-memory, offline
+```
+
+GitHub Actions runs all three on push/PR (`.github/workflows/ci.yml`).
 
 ## Roadmap
 
-- [x] Document ingestion (PDF/DOCX/TXT)
-- [x] Multi-modal extraction (text, tables, images)
-- [x] Chart detection & classification
-- [x] Smart chunking with page tracking
-- [x] FAISS vector store
-- [x] Auto retrieval strategy selection
-- [x] Cross-encoder reranking
-- [x] QA generation with citations
-- [x] Industry-standard evaluation
-- [x] Streamlit UI
-- [ ] FastAPI deployment
-- [ ] Docker container
+- [x] Modular package structure + pyproject/requirements split
+- [x] Enterprise src-layout: `core` / `services` / `api` / engine subpackages
+- [x] FastAPI service with degraded-mode startup, middleware, structured logging
+- [x] pydantic-settings configuration (openai / azure_openai / groq)
+- [x] Provider-aware vector store: Azure AI Search (default), Qdrant, FAISS
+- [x] Document upload, list, and delete API endpoints
+- [x] Conversation memory + project registry (Azure Cosmos DB NoSQL)
+- [x] Raw document persistence + download (Azure Blob Storage)
+- [x] Streamlit web client + CLI
+- [x] Docker + docker-compose + CI
+- [ ] Azure OpenAI embeddings/generation wiring polish (eval with real keys)
 - [ ] Monitoring dashboard
-
----
 
 ## Tech Stack
 
-- [LangChain](https://python.langchain.com/)
-- [FAISS](https://github.com/facebookresearch/faiss)
-- [Sentence Transformers](https://www.sbert.net/)
-- [OpenAI](https://platform.openai.com/)
-- [Streamlit](https://streamlit.io/)
-- [Tesseract OCR](https://github.com/UB-Mannheim/tesseract/wiki)
-
----
+FastAPI, Streamlit, Qdrant, Azure AI Search, Azure Cosmos DB, Azure Blob Storage,
+OpenAI/Azure OpenAI, pydantic-settings, PyMuPDF, pdfplumber, python-docx,
+camelot-py, Tesseract, sentence-transformers, tiktoken.

@@ -1,1 +1,42 @@
+# Secrets / environment
 .env
+.env.local
+*.key
+*.pem
+
+# Python virtual environment
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Model weights & caches (large, downloaded at runtime)
+models/
+*.onnx
+*.safetensors
+!**/model-card.md
+
+# Build artifacts / vector store data
+build/
+dist/
+*.egg-info/
+vector_store_data/
+*.faiss
+evaluation_results.json
+
+# Logs
+*.log
+logs/
+
+# IDE
+.idea/
+.vscode/
+.DS_Store
+
+# OS
+Thumbs.db

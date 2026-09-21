@@ -1,0 +1,7 @@
+# Dev/test tooling (includes base).
+-r base.txt
+
+pytest==8.4.2
+ruff==0.16.7
+mypy==1.19.1
+httpx==0.28.1

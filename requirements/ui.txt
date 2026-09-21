@@ -1,0 +1,5 @@
+# Streamlit UI (thin HTTP client to the API).
+-r base.txt
+
+streamlit>=1.37.0
+httpx==0.28.1
